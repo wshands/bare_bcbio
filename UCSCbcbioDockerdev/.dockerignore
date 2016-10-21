@@ -1,0 +1,3 @@
+# the Docker daemon will ignore the following files during a build
+*.sh
+
