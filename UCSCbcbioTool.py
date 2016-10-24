@@ -3,8 +3,27 @@ from __future__ import print_function, division
 """ 
     author Walt Shands 
     jshands@ucsc.com 
-  
-Produces a table ??????  
+
+This script runs a cancer variant and or structural variant calling pipeline 
+using the publicly available bcbio/bcbio Docker container.
+See this document for more information on bcbio: 
+        http://bcbio-nextgen.readthedocs.io/en/latest/index.html
+
+It will download reference data if the data directory provided to it is empty. 
+It will installthe GATK tools if the GATK switch and arguent is specified on the
+ command line.
+
+Inputs:
+    The tumor fastq or BAM files: These should be separated by a space. Required.
+    The normalfastq or BAM files: These should be separated by a space. Required.
+    Total available cores. This tells bcbio how many total cores to use. 
+               http://bcbio-nextgen.readthedocs.io/en/latest/contents/parallel.html
+    The path and file name of the GATK tools. If provided the GATK tools will be installed
+          in the container for use in the workflow. (required????) 
+    The name of the workflow to run. If not provided cancer variant calling only is run.
+    The path to and name of the BED file. Required.
+    The path of the output directory. Required.     
+
 """
 
 import sys, argparse, os
@@ -21,20 +40,20 @@ def parse_arguments():
     """
     Parse Command Line
     """
-    parser = argparse.ArgumentParser(description='')
+    parser = argparse.ArgumentParser(description='Script to run the bcbio Docker container')
 
-    parser.add_argument('-s', '--sample_files', type=str, action='append',
-                         help="Input file(s) for processing. Multiple path/file"  
-                         "names can be provided separated by spaces. These could" 
-                         "correspond fastq files for paired end reads." )
+#    parser.add_argument('-s', '--sample_files', type=str, action='append',
+#                         help="Input file(s) for processing. Multiple path/file"  
+#                         "names can be provided separated by spaces. These could" 
+#                         "correspond fastq files for paired end reads." )
 
-    parser.add_argument('-t', '--tumor_sample_files', type=str,
+    parser.add_argument('-t', '--tumor_sample_files', type=str, required=True,
                          action='append',
                          help='Input file(s) for processing. Multiple path/file \
                          names can be provided separated by spaces. These could \
                          correspond fastq files for tumor paired end reads.' )
 
-    parser.add_argument('-n', '--normal_sample_files', type=str,
+    parser.add_argument('-n', '--normal_sample_files', type=str, required=True,
                          action='append', help='Input file(s) for processing. \
                          Multiple path/file names can be provided separated by \
                          spaces. These could correspond fastq files for normal \
@@ -47,7 +66,8 @@ def parse_arguments():
                         'e.g. /path/to/GenomeAnalysisTK.tar.bz2.')
  
     parser.add_argument('-W','--workflow', choices=['cancer_variant_calling',
-                         'germline-variant-calling','structural_variant_calling'], 
+ #                         'germline-variant-calling','structural_variant_calling'], 
+                         'structural_variant_calling'], 
                          default=['cancer_variant_calling'], 
                          action='append', 
                          help="The name of the workflow to run. Default is cancer" \
@@ -55,11 +75,6 @@ def parse_arguments():
 
     parser.add_argument('-b', '--bed_file', type=str, required=True, 
                           help='Input BED file.')
-
-#    parser.add_argument('data_dir', type=str, help='Directory where data files, e.g. genome files, should be located.' )
-
-#    parser.add_argument('work_dir', type=str, help='Working directory where \
-#                       intermediate files should be written.' )
 
     parser.add_argument('-o', '--output_dir', type=str, required=True, 
                        help='Directory where output files should be written.' )
@@ -71,6 +86,8 @@ def parse_arguments():
 
 def get_bcbio_system_template():
     """
+    This templated describes the system resources to the bcbio Docker container
+    so that it can allocate the correct resources to each thread.
     """
     bcbio_system_template = string.Template("""
 #
@@ -108,6 +125,12 @@ galaxy_config: /mnt/biodata/galaxy/
 
 def get_cancer_variant_template():
     """
+    This is the template that describes to bcbio the tools to used in the cancer
+    variant calling workflow and if structural variant calling is also requested
+    which tools to use. The input tumor and normal path and file names are 
+    inserted into the template as is the path and file name of the BED file,
+    the structural variant calling tools to use if structural variant calling is
+    requested and the output directory.
     """
     cancer_variant_template = string.Template("""
 # Cancer tumor/normal calling evaluation using synthetic dataset 3
@@ -223,7 +246,6 @@ def get_user_group_for_a_path(path_to_check):
 #    print("group id1:", group_id)
     user_name = pwd.getpwuid(uid).pw_name
     group_name = grp.getgrgid(gid).gr_name
-#    sys.exit()#DEBUG!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     print("user name:", user_name)
     print("group name:", group_name)
     return user_name, uid, group_name, gid
@@ -239,7 +261,7 @@ def __main__(args):
     #runs as root then all files written onto the host file system will be owned 
     #by root. To avoid this we chown any written files to the user.
     #We assume the user is the owner of the ouput directory in this case.
-    user_name, user_id, group_name, group_id = get_user_group_for_a_path(options.output_dir)
+#    user_name, user_id, group_name, group_id = get_user_group_for_a_path(options.output_dir)
 
     yaml_substitute_values = collections.defaultdict(str)
 
@@ -249,14 +271,16 @@ def __main__(args):
     output_dir_str = "".join(options.output_dir)
     yaml_substitute_values['output_dir'] = output_dir_str
 
-    if options.sample_files:
-        sample_file_str = ",".join(options.sample_files)
-        yaml_substitute_values['sample_files'] = sample_file_str
+#    if options.sample_files:
+#        sample_file_str = ",".join(options.sample_files)
+#        yaml_substitute_values['sample_files'] = sample_file_str
+
     if options.normal_sample_files:
 #        print("normal files:", options.normal_sample_files)
         normal_file_str = ",".join(options.normal_sample_files)
 #        print("items", normal_file_list)
         yaml_substitute_values['normal_sample_files'] = normal_file_str
+
     if options.tumor_sample_files:
         tumor_file_str = ",".join(options.tumor_sample_files)
         yaml_substitute_values['tumor_sample_files'] = tumor_file_str
@@ -268,8 +292,8 @@ def __main__(args):
     # in case structural variant calling is not requested
     print("workflow:", options.workflow)
 
-    if 'germline_variant_calling' in options.workflow:
-        workflow_template = get_germline_variant_template()
+#    if 'germline_variant_calling' in options.workflow:
+#        workflow_template = get_germline_variant_template()
     
     if 'cancer_variant_calling' in options.workflow:
         workflow_template = get_cancer_variant_template()
@@ -361,7 +385,7 @@ def __main__(args):
 
             #change the ownership of the file to the  user so when the bcbio_nextgen 
             #command is executed as the user below the files in it can be read or edited
-            os.chown(bcbio_system_file.name, user_id, group_id)
+#            os.chown(bcbio_system_file.name, user_id, group_id)
             #os.chmod(bcbio_system_file.name, 0666)
 
             #run the command to download the data for the reference genome and
@@ -372,6 +396,7 @@ def __main__(args):
             # command. I.e. docker run -v $(pwd)/data/:/mnt/biodata/ ...
             cmd = ["bcbio_nextgen.py", 'upgrade', '--data', '--genomes', 'GRCh37', '--aligners', 'bwa']
 
+
             #run the bcbio_nextgen.py command using the bcbio script that runs the bcbio-nexgen.py
             #program as the user we specify so that ouput files are owned by that user and not the 
             #user the container is running as which could a different user
@@ -379,31 +404,9 @@ def __main__(args):
 #            'bcbio_nextgen.py', 'upgrade', '--data', '--genomes', 'GRCh37', '--aligners', 'bwa'] 
 
             print("command to run:\n",cmd)
-            try:
-                output = subprocess.check_output(cmd)
-                print(output)
+            output = subprocess.call(cmd)
+            print("data download output is:\n", output)
 
-#               sub_process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-#               while sub_process.poll() is None:
-#                    out = sub_process.stdout.read(1)
-#                    sys.stdout.write(out)
-#                    sys.stdout.flush()
-
-
-
-#                    line = process.stdout.readline()
-#                    if not line:
-#                        break
-#                    print(">>>>",line)
-#                print(">>>>", process.stdout.read())
-
-
-
-#                for line in iter(process.stdout.readline, b''):
-#                    print(">>> " + line.rstrip())
-
-            except subprocess.CalledProcessError as err:
-                print(err.output, file=sys.stderr)
         else:
             print("WARNING: The data directory is not empty, skipping data download!", 
                      file=sys.stderr)
@@ -411,6 +414,7 @@ def __main__(args):
         print("ERROR: The provided data directory is not a directory, skipping"
                "data download!", file=sys.stderr)
  
+
     #create a temporary file in which to store the YAML template so the bcbio-nextgen
     #script can read it. The file will be deleted after the command is run. 
 #     with tempfile.NamedTemporaryFile(dir=options.work_dir, delete=False) as workflow_yaml_file:
@@ -432,34 +436,13 @@ def __main__(args):
     cmd = ["bcbio_nextgen.py", workflow_yaml_file.name , "-n", str(options.num_cores)]
      
     print("command to run:\n",cmd)
-    try:
-        output = subprocess.check_output(cmd)
-        print(output)
-
-#        sub_process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-#        while sub_process.poll() is None:
-#            out = sub_process.stdout.read(1)
-#            sys.stdout.write(out)
-#            sys.stdout.flush()
-
-
-#       while process.poll() is None:
-#            line = process.stdout.readline()
-#           if not line:
-#               break
-#            print(">>>>",line)
-#        print(">>>>", process.stdout.read())
-
-#        for line in iter(process.stdout.readline, b''):
-#            print(">>> " + line.rstrip())
-
-    except subprocess.CalledProcessError as err:
-        print(err.output, file=sys.stderr)
+    output = subprocess.call(cmd)
+    print("workflow output is:\n", output)
 
     #delete the temporary file used to hold the YAML template
     workflow_yaml_file.close()
 
-    #change the owner and group of files written to the host to
+    #TODO??? change the owner and group of files written to the host to
     #the owner and group captured at the beginning of the script
     #we assume these are the files in the working and output directories
         
