@@ -2,22 +2,21 @@
 
 class: CommandLineTool
 id: "UCSCbcbioTool"
-label: "bcbio nextgen tool"
+label: "unwrapped bcbio nextgen tool"
 cwlVersion: v1.0 
 doc: |
-    ![build_status](https://quay.io/repository/collaboratory/dockstore-tool-bamstats/status)
+    ![build_status](https://quay.io/wshands/bare_bcbio/status)
     A Docker container for the bcbio command. 
     See the bcbio (http://bcbio-nextgen.readthedocs.io/en/latest/index.html) 
     website for more information.
     ```
-    Usage:
+     Usage:
     # fetch CWL
-    $> dockstore tool cwl --entry quay.io/collaboratory/UCSCbcbioTool > UCSCbcbioTool.cwl
+    $> dockstore tool cwl --entry quay.io/wshands/bare_bcbio > germline_variant_calling.cwl
     # make a runtime JSON template and edit it
-    $> dockstore tool convert cwl2json --cwl UCSCbcbioTool.cwl > UCSCbcbioTool.json
+    $> dockstore tool convert cwl2json --cwl germline_variant_calling.cwl > germline_variant_calling.json
     # run it locally with the Dockstore CLI
-    $> dockstore tool launch --entry quay.io/collaboratory/UCSCbcbioTool:latest \
-        --json UCSCbcbioTool.json
+    $> dockstore tool launch --entry quay.io/wshands/bare_bcbio  --json germline_variant_calling.json
     ```
 
 #dct:creator:
@@ -27,7 +26,7 @@ doc: |
 
 requirements:
   - class: DockerRequirement
-    dockerPull: "ucscbcbiotool:latest"
+    dockerPull: "quay.io/wshands/bare_bcbio"
 
 hints:
   - class: ResourceRequirement
