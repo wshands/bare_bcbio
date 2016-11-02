@@ -26,7 +26,14 @@ Inputs:
           in the container for use in the workflow. (required????) 
     The name of the workflow to run. If not provided cancer variant calling only is run.
     The path to and name of the BED file. Required.
-    The path of the output directory. Required.     
+    The path to the tar file of the bcbio reference genome directory or a path
+        to where the bcbio reference genoe directory already exists or where the 
+        reference genomes should be download. 
+        For Dockstore this must be the
+        tar file of the reference genome directory or nothing, in which case
+        the reference genomes are downloaded to the current working directory 
+        specified by CWLTool
+    The path of the output directory.     
 
 """
 
@@ -82,7 +89,13 @@ def parse_arguments():
     parser.add_argument('-b', '--bed_file', type=str, required=True, 
                           help='Input BED file.')
 
-    parser.add_argument('-o', '--output_dir', type=str, required=True, 
+    reference_genomes_group  = parser.add_mutually_exclusive_group()
+    reference_genomes_group.add_argument('-d', '--data_dir', type=str, 
+                       help='Directory where reference genome files are or should'
+                       'be downloaded.' )
+    reference_genomes_group.add_argument('-f', '--data_file', type=str, help='Path to reference genomes tar file.') 
+ 
+    parser.add_argument('-o', '--output_dir', type=str, 
                        help='Directory where output files should be written.' )
 
     options = parser.parse_args()
@@ -120,6 +133,8 @@ def get_bcbio_system_template():
     bcbio_system_template = string.Template("""
 #
 resources:
+#  tmp:
+#    dir: $temp_dir
   default:
     cores: $core_count
     jvm_opts:
@@ -145,6 +160,7 @@ resources:
     - -Xms750m
     - -Xmx4g
 galaxy_config: /mnt/biodata/galaxy/
+#  galaxy_config: $galaxy_config_path
     """)
 
     return bcbio_system_template
@@ -165,6 +181,10 @@ def get_germline_variant_template():
 # derived from 
 # https://bcbio-nextgen.readthedocs.org/en/latest/contents/testing.html#example-pipelines
 ---
+resources:
+  tmp:
+    dir: $working_dir
+    #dir: ./work
 upload:
   dir: $output_dir
 details:
@@ -287,6 +307,10 @@ fc_name: dream-syn3
 upload:
 #  dir: /mnt/cancer-dream-syn3/final
   dir: $output_dir
+resources:
+  tmp:
+    #dir: ./work 
+    dir: $working_dir
     """)
 
     return cancer_variant_template
@@ -325,6 +349,42 @@ def __main__(args):
 
     options = parse_arguments()
 
+    cwd = os.getcwd()
+    datadir = cwd
+    datadir = cwd + '/data/'
+    if not os.path.exists(datadir):
+        os.makedirs(datadir)
+ 
+    if options.data_dir:
+        datadir = options.data_dir    
+        if not os.path.exists(datadir):
+            os.makedirs(datadir)
+        #if the data dir does not end in a slash add one
+        datadir = os.path.join(datadir, '')
+
+    elif options.data_file:
+        #open the bcbio reference data tar in the current working directory
+        #Dockstore (and cwltool?) seems to require this as the directory
+        #where the input tar file is stored (and all other inputs) are
+        #mounted as read only 
+        cmd = ['tar','-xzvf', options.data_file, '-C', datadir]
+        print("cmd is:", cmd) 
+        print("Untarring bcbio data file ", options.data_file, " in ", datadir)
+        try:
+            subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as err:
+            print(err.output, file=sys.stderr)
+        else:
+            print("Bcbio data file ", options.data_file, " untarred in ", datadir)
+      
+    print("bcbio reference data dir:", datadir)
+
+    working_dir = cwd + '/work/'
+    if not os.path.exists(working_dir):
+        os.makedirs(working_dir)    
+
+#    sys_yaml_substitute_values['working_dir'] = working_dir
+ 
     #get the user and group information for a path on the host. If the container
     #runs as root then all files written onto the host file system will be owned 
     #by root. To avoid this we chown any written files to the user.
@@ -333,10 +393,16 @@ def __main__(args):
 
     yaml_substitute_values = collections.defaultdict(str)
 
+    yaml_substitute_values['working_dir'] = working_dir
+
     bed_file_str = "".join(options.bed_file) 
     yaml_substitute_values['bed_file'] = bed_file_str
 
-    output_dir_str = "".join(options.output_dir)
+    output_dir_str = './final'
+    if options.output_dir: 
+        output_dir_str = "".join(options.output_dir)
+    if not os.path.exists(output_dir_str):
+      os.makedirs(output_dir_str)    
     yaml_substitute_values['output_dir'] = output_dir_str
 
     if options.sample_files:
@@ -356,8 +422,6 @@ def __main__(args):
 #    for key, item in yaml_substitute_values.iteritems():
 #        print("yaml key and item:\n",key, item)
 
-    # initialize structural variant substitution to nothing
-    # in case structural variant calling is not requested
     print("workflow:", options.workflow)
 
     if 'germline-variant-calling' in options.workflow:
@@ -366,6 +430,8 @@ def __main__(args):
     if 'cancer-variant-calling' in options.workflow:
         workflow_template = get_cancer_variant_template()
     
+    # initialize structural variant substitution to nothing
+    # in case structural variant calling is not requested
     yaml_substitute_values['svcaller_info'] = ""
     if 'structural-variant-calling' in options.workflow:
         yaml_substitute_values['svcaller_info'] = 'svcaller: [cnvkit, lumpy, delly]' 
@@ -387,9 +453,10 @@ def __main__(args):
             print("WARNING: The container's GATK directory is not empty,"
                 "skipping GATK install!", file=sys.stderr)
         else:
-            cmd = "gatk-register " + options.GATK_file
+            cmd = ["gatk-register", options.GATK_file]
             try:
-                subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)
+                #TODO try formatting the command as one string and removing shell=True
+                subprocess.check_output(cmd, stderr=subprocess.STDOUT)
             except subprocess.CalledProcessError as err:
                 print(err.output, file=sys.stderr)
             else:
@@ -401,20 +468,30 @@ def __main__(args):
     #The data directory should be mounted to the /mnt/biodata/
     #directory inside the container, so we can look at /mnt/biodata/
     #to see if it exists or is empty.
-    if os.path.exists('/mnt/biodata/'):
-        # if the data dir is empty then we can safely download
-        # genome data
-        if len(os.listdir('/mnt/biodata/')) == 0:
+
+    #if the call to docker run does not include a -v mount point for the
+    #genome reference data on the host then the container will fail to see
+    #the directory so keep this test to check for this
+    if os.path.exists(datadir):
+        print("after exists test in download code")
+        # if the data dir is empty then we can safely download genome data
+        if len(os.listdir(datadir)) == 0:
             #create the subdirectory which will hold the location
             #files and bcbio system YAML
-            os.makedirs('/mnt/biodata/galaxy')
+            os.makedirs(datadir + 'galaxy')
+            #create the necessary symlink so bcbio can find the galaxy folder on the host
+            os.symlink(datadir + 'galaxy', '/mnt/biodata/galaxy')
+
             #change the ownership of the directory to the  user so when the bcbio_nextgen 
             #command is executed as the user below the files in it can be read or edited
 #            os.chmod('/mnt/biodata/galaxy', 0666)
 #            os.chown('/mnt/biodata/galaxy', user_id, group_id)
 
             #create the subdirectory that will hold the reference genomes data
-            os.makedirs('/mnt/biodata/genomes')
+            os.makedirs(datadir + 'genomes')
+            #create the necessary symlink so bcbio can find the genomes folder on the host
+            os.symlink(datadir + 'genomes', '/mnt/biodata/genomes')
+
             #change the ownership of the directory to the  user so when the bcbio_nextgen 
             #command is executed as the user below the files in it can be read or edited
 #            os.chmod('/mnt/biodata/genomes', 0666)
@@ -424,6 +501,7 @@ def __main__(args):
             #This contains default values that can be edited by the user later 
             #after the current run to reflect the resources on the system. 
             sys_yaml_substitute_values = collections.defaultdict(str)
+
             #TODO: add correct system mem to substitute values?
             #set the default number of cores in the system
             sys_yaml_substitute_values['core_count'] = str(16)
@@ -447,7 +525,8 @@ def __main__(args):
 
             print("bcbio system YAML:", bcbio_system_yaml)
 
-            with open("/mnt/biodata/galaxy/bcbio_system.yaml","w+") as bcbio_system_file:
+            with open('/mnt/biodata/galaxy/' \
+                      + "bcbio_system.yaml","w+") as bcbio_system_file:
                 bcbio_system_file.write(bcbio_system_yaml)
 
             #change the ownership of the file to the  user so when the bcbio_nextgen 
@@ -475,40 +554,48 @@ def __main__(args):
             print("data download output is:\n", output)
 
         else:
-            print("WARNING: The data directory is not empty, skipping data download!", 
+            #TODO check that the genomes and galaxy folders exist; they should if 
+            #datadir points to a bcbio created data directory
+            #create the necessary symlink so bcbio can find the genomes folder on the host
+            print("setting symlink /mnt/biodata/galaxy to point to:", datadir+'galaxy')
+            os.symlink(datadir + 'genomes', '/mnt/biodata/genomes')
+            #create the necessary symlink so bcbio can find the galaxy folder on the host
+            os.symlink(datadir + 'galaxy', '/mnt/biodata/galaxy')
+            print("WARNING: The data directory " + datadir + "is not empty, skipping data download!", 
                      file=sys.stderr)
     else:
-        print("ERROR: The provided data directory is not a directory, skipping"
-               "data download!", file=sys.stderr)
+        print("ERROR: The provided data directory " + datadir + " is not a directory," 
+              "did you mount a volume to the data directory?"
+              "Skipping data download!", file=sys.stderr)
  
 
     #create a temporary file in which to store the YAML template so the bcbio-nextgen
     #script can read it. The file will be deleted after the command is run. 
-#     with tempfile.NamedTemporaryFile(dir=options.work_dir, delete=False) as workflow_yaml_file:
-    with tempfile.NamedTemporaryFile(delete=False) as workflow_yaml_file:
-        workflow_yaml_file.write(workflow_to_run)    
+#    with tempfile.NamedTemporaryFile(delete=False) as workflow_yaml_file:
+#        workflow_yaml_file.write(workflow_to_run)    
+
+    #write the project YAML to the current working directory so the user can
+    #see exactly what bcbio is running and so bcbio can read it and run it
+    with open("bcbio_project.yaml","w+") as bcbio_project_file:
+                bcbio_project_file.write(workflow_to_run)
+    bcbio_project_file.close()
+
+
     #os.chmod(workflow_yaml_file.name, 0644)
     #change the ownership of the file to the  user so when the bcbio_nextgen 
     #command is executed as the user below the files in it can be read or edited
 #    os.chown(workflow_yaml_file.name, user_id, group_id)
 
-
-    #run the workflow as the user and group that owns the output directory
-    #run the bcbio_nextgen.py command using the bcbio script that runs the bcbio-nexgen.py
-    #program as the user we specify so that ouput files are owned by that user and not the 
-    #user the container is running as which could a different user
-#    cmd = ["/sbin/createsetuser", user_name, str(user_id), group_name, str(group_id), 
-#           'bcbio_nextgen.py', workflow_yaml_file.name, "-n", str(options.num_cores)]
     #run the workflow
-    cmd = ["bcbio_nextgen.py", workflow_yaml_file.name , "-n", str(options.num_cores)]
+#     cmd = ["bcbio_nextgen.py", workflow_yaml_file.name , "-n", str(options.num_cores)]
+    cmd = ["bcbio_nextgen.py", bcbio_project_file.name , "-n", str(options.num_cores)]
      
     print("command to run:\n",cmd)
     output = subprocess.call(cmd)
     print("workflow output is:\n", output)
 
     #delete the temporary file used to hold the YAML template
-    workflow_yaml_file.close()
-
+#    workflow_yaml_file.close()
     #TODO??? change the owner and group of files written to the host to
     #the owner and group captured at the beginning of the script
     #we assume these are the files in the working and output directories
