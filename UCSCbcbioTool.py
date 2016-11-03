@@ -27,13 +27,14 @@ Inputs:
     The name of the workflow to run. If not provided cancer variant calling only is run.
     The path to and name of the BED file. Required.
     The path to the tar file of the bcbio reference genome directory or a path
-        to where the bcbio reference genoe directory already exists or where the 
+        to where the bcbio reference genome directory already exists or where the 
         reference genomes should be download. 
         For Dockstore this must be the
         tar file of the reference genome directory or nothing, in which case
         the reference genomes are downloaded to the current working directory 
-        specified by CWLTool
-    The path of the output directory.     
+        specified by the users TMPDIR environment variable, or if that is not
+        set then then cwltool usually sets the cwd to a subdirectory of /tmp
+    The path of the output directory. Default is cwd/final. 
 
 """
 
@@ -96,7 +97,7 @@ def parse_arguments():
     reference_genomes_group.add_argument('-f', '--data_file', type=str, help='Path to reference genomes tar file.') 
  
     parser.add_argument('-o', '--output_dir', type=str, 
-                       help='Directory where output files should be written.' )
+                       help='Directory where output files should be written. Default is <cwd>/final' )
 
     options = parser.parse_args()
 
@@ -349,20 +350,39 @@ def __main__(args):
 
     options = parse_arguments()
 
+    #get the current working directory. If the container is 
+    #run by cwltool alone or by cwltool via a Dockstore 
+    #run command then all of the intermediate and results files will be written
+    #to the current working directory. It is important for the user in this case
+    #to set the host environment variable TMPDIR to a directory will plenty of 
+    #space in which to write, otherwise cwltools will create a temporary directory,
+    #most likely under /tmp, for this purpose, and there may not be enough disk
+    #space for the pipelines to use.
     cwd = os.getcwd()
-    datadir = cwd
-    datadir = cwd + '/data/'
-    if not os.path.exists(datadir):
-        os.makedirs(datadir)
+    if not os.path.exists(cwd):
+        print("ERROR: The current working directory " + cwd + " cannot be reached," 
+              "did you mount a volume to the directory using '-v' on the 'docker run'"
+              "command line?", file=sys.stderr)
  
+    #if the user has provided a directory where the bcbio reference data has
+    #been already downloaded or where it should be downloaded
     if options.data_dir:
         datadir = options.data_dir    
         if not os.path.exists(datadir):
             os.makedirs(datadir)
         #if the data dir does not end in a slash add one
         datadir = os.path.join(datadir, '')
-
+    #if the user has  provided a tar file of the tarred up bcbio reference
+    #data 
     elif options.data_file:
+        #create a subdirectory in which to extract bcbio reference data
+        #This should be the current working directory as set by the user
+        #or cwltool as we know it will be writable and we hope that the 
+        #user has chosen a directory with enough space
+        #TODO??? This should be a unique name???? in case it already exists!!! 
+        datadir = cwd + '/data/'
+        if not os.path.exists(datadir):
+            os.makedirs(datadir)
         #open the bcbio reference data tar in the current working directory
         #Dockstore (and cwltool?) seems to require this as the directory
         #where the input tar file is stored (and all other inputs) are
@@ -376,9 +396,23 @@ def __main__(args):
             print(err.output, file=sys.stderr)
         else:
             print("Bcbio data file ", options.data_file, " untarred in ", datadir)
+    else:
+        #create a subdirectory in which to store bcbio reference data. The user 
+        #(or cwltool) has not provided a directory for the reference data and no
+        #tar file of the reference data has been provided. In this case the reference 
+        #has to be downloaded, and the default is to put it in a subfolder under cwd 
+        #TODO??? This should be a unique name???? in case it already exists!!! 
+        datadir = cwd + '/data/'
+        if not os.path.exists(datadir):
+            os.makedirs(datadir)
+ 
       
     print("bcbio reference data dir:", datadir)
 
+    #create a directory for the intermediate files created during the pipeline
+    #run. The default is to put them under the current working directory. 
+    #This path is substituted into the bcbio workflow YAML so bcbio will write
+    #intermediate files to this directory.
     working_dir = cwd + '/work/'
     if not os.path.exists(working_dir):
         os.makedirs(working_dir)    
@@ -398,6 +432,11 @@ def __main__(args):
     bed_file_str = "".join(options.bed_file) 
     yaml_substitute_values['bed_file'] = bed_file_str
 
+    
+    #create a directory for the result files created during the pipeline
+    #run. The default is to put them under the current working directory. 
+    #This path is substituted into the bcbio workflow YAML so bcbio will write
+    #intermediate files to this directory.
     output_dir_str = './final'
     if options.output_dir: 
         output_dir_str = "".join(options.output_dir)
@@ -436,16 +475,19 @@ def __main__(args):
     if 'structural-variant-calling' in options.workflow:
         yaml_substitute_values['svcaller_info'] = 'svcaller: [cnvkit, lumpy, delly]' 
 
+    #place the input files and intermediate and results files locations, etc.
+    #into the bcbio workflow YAML and save the YAML to pass to bcbio
     workflow_to_run = ""   
     try:
         workflow_to_run = workflow_template.substitute(yaml_substitute_values)
     except KeyError, err:
         print('ERROR:', str(err), file=sys.stderr) 
 
-
-
     print("workflow template:\n",workflow_to_run)
 
+    #install the GATK inside the container so bcbio can use the GATK tools
+    #The default location to install the tools inside the container is /tmp
+    #so check first to see if somehow they are already installed
     if options.GATK_file:
         # if the gatk dir /tmp/gatk exists and is not empty then the GATK may already
         # be installed so do not reinstall the GATK 
@@ -465,16 +507,24 @@ def __main__(args):
     #install the genome data if the provided data directory is empty
     #TODO: check if particular genomes need to be installed...allow
     #user to specify additional genomes to install.
-    #The data directory should be mounted to the /mnt/biodata/
-    #directory inside the container, so we can look at /mnt/biodata/
-    #to see if it exists or is empty.
+
+    #The reference data subdirectory 'genomes' must be pointed to by the 
+    #/mnt/biodata/genomes directory inside the container, and the same is true 
+    #for the subdirectory 'galaxy'. This is a bcbio requirement and is accomplished 
+    #by creating symlinks. 
+
+    #In the situation where cwltool runs the container the file system is read
+    #only and the the script would not be able to create the symlinks. We avoid
+    #this by using the VOLUME /mnt/biodata statment in the Dockerfile and setting 
+    #the directory permissions so that /mnt/biodata is writeable by any user.
 
     #if the call to docker run does not include a -v mount point for the
     #genome reference data on the host then the container will fail to see
     #the directory so keep this test to check for this
     if os.path.exists(datadir):
-        print("after exists test in download code")
         # if the data dir is empty then we can safely download genome data
+        #if it is not empty we assume the data has already been downloaded
+        #and bcbio can use it
         if len(os.listdir(datadir)) == 0:
             #create the subdirectory which will hold the location
             #files and bcbio system YAML
@@ -538,10 +588,8 @@ def __main__(args):
             #location files. The reference genome will be put in /mnt/biodata/genomes/
             #and the location files in /mnt/biodata/galaxy/
             #These directories should point to directories on the host that have lots
-            #of space and setup by mounting a volume to /mnt/biodata in the 'docker run'
-            # command. I.e. docker run -v $(pwd)/data/:/mnt/biodata/ ...
+            #of space and this is accomplished via the symlinks created above
             cmd = ["bcbio_nextgen.py", 'upgrade', '--data', '--genomes', 'GRCh37', '--aligners', 'bwa']
-
 
             #run the bcbio_nextgen.py command using the bcbio script that runs the bcbio-nexgen.py
             #program as the user we specify so that ouput files are owned by that user and not the 
@@ -564,16 +612,10 @@ def __main__(args):
             print("WARNING: The data directory " + datadir + "is not empty, skipping data download!", 
                      file=sys.stderr)
     else:
-        print("ERROR: The provided data directory " + datadir + " is not a directory," 
-              "did you mount a volume to the data directory?"
-              "Skipping data download!", file=sys.stderr)
+        print("ERROR: The provided data directory " + datadir + " cannot be reached," 
+              "did you mount a volume to the data directory using '-v' on the 'docker run'"
+              "command line?", file=sys.stderr)
  
-
-    #create a temporary file in which to store the YAML template so the bcbio-nextgen
-    #script can read it. The file will be deleted after the command is run. 
-#    with tempfile.NamedTemporaryFile(delete=False) as workflow_yaml_file:
-#        workflow_yaml_file.write(workflow_to_run)    
-
     #write the project YAML to the current working directory so the user can
     #see exactly what bcbio is running and so bcbio can read it and run it
     with open("bcbio_project.yaml","w+") as bcbio_project_file:
@@ -587,15 +629,12 @@ def __main__(args):
 #    os.chown(workflow_yaml_file.name, user_id, group_id)
 
     #run the workflow
-#     cmd = ["bcbio_nextgen.py", workflow_yaml_file.name , "-n", str(options.num_cores)]
     cmd = ["bcbio_nextgen.py", bcbio_project_file.name , "-n", str(options.num_cores)]
      
     print("command to run:\n",cmd)
     output = subprocess.call(cmd)
     print("workflow output is:\n", output)
 
-    #delete the temporary file used to hold the YAML template
-#    workflow_yaml_file.close()
     #TODO??? change the owner and group of files written to the host to
     #the owner and group captured at the beginning of the script
     #we assume these are the files in the working and output directories
