@@ -51,4 +51,8 @@ USER ubuntu
  
 VOLUME /mnt/biodata/
 
-
+#Use VOLUME to expose the /mnt/biodata/ directory on the host. This is done to make
+#the directory where the GATK jar file will be stored writable, in the case 
+#that the container is being run by cwltool. The GATK cannot be preinstalled
+#in the container bacause a license is required to use it.
+VOLUME /usr/local/share/bcbio-nextgen/anaconda/opt
