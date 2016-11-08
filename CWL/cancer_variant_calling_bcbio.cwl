@@ -78,14 +78,14 @@ inputs:
     inputBinding:
       prefix: --WES_bed_file
 
-#  include_sv:
-#    type: boolean?
-#    default: false
-#    doc: "Include structural variant calling"
-#    inputBinding:
-#      prefix: --include_sv
+  include_sv:
+    type: boolean?
+    default: false
+    doc: "Include structural variant calling"
+    inputBinding:
+      prefix: --include_sv
 
-   run_name:
+  run_name:
     type: string?
     default: "Current_run"
     doc: "Name to use for batching samples and intermediate file names."

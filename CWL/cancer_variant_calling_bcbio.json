@@ -22,6 +22,8 @@
     ],
 
     "workflow": "somatic-variant-calling",
+
+    "include_sv": true,
     
     "run_name": "test_run",
 
