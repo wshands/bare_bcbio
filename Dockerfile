@@ -2,9 +2,7 @@ FROM bcbio/bcbio:latest
 
 MAINTAINER Walt Shands jshands@ucsc.edu
 
-ENV TEMPDIR=/work
-
-WORKDIR $TEMPDIR
+WORKDIR ./work
 
 USER root
 

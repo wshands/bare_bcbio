@@ -1,5 +1,5 @@
 {
-  "normal_sample_files": [
+  "normal_germline_input": [
         {
         "class": "File",
         "path": "/mnt/cancer-dream-syn3/input/synthetic_challenge_set3_normal_NGv3_1.fq.gz"
@@ -10,7 +10,7 @@
         }
     ],
 
-  "tumor_sample_files": [
+  "tumor_input": [
         {
         "class": "File",
         "path": "/mnt/cancer-dream-syn3/input/synthetic_challenge_set3_tumor_NGv3_1.fq.gz"
@@ -21,16 +21,20 @@
         }
     ],
 
-    "workflow": "cancer-variant-calling",
+    "workflow": "somatic-variant-calling",
+    
+    "run_name": "test_run",
 
     "num_cores": 24,
  
-    "bed_file": {
+    "WES_bed_file": {
         "class": "File",
         "path": "/mnt/cancer-dream-syn3/input/NGv3.bed"
     },
 
-     "GATK_file": {
+    "include_sv": "true",
+
+    "GATK_file": {
         "class": "File",
         "path": "/mnt/GATK/GenomeAnalysisTK-3.6.tar.bz2"
     },

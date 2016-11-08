@@ -1,5 +1,5 @@
 {
-  "sample_files": [
+  "normal_germline_input": [
         {
         "class": "File",
         "path": "/mnt/NA12878-exome-eval/input/NA12878-NGv3-LAB1360-A_1.fastq.gz"
@@ -12,12 +12,16 @@
 
     "workflow": "germline-variant-calling",
 
+    "run_name": "test_run",
+
     "num_cores": 24,
  
-    "bed_file": {
+    "WES_bed_file": {
         "class": "File",
         "path": "/mnt/cancer-dream-syn3/input/NGv3.bed"
     },
+
+    "include_sv": "true",
 
     "GATK_file": {
         "class": "File",

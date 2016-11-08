@@ -36,21 +36,21 @@ hints:
     description: "the process requires at least 4G of RAM"
 
 inputs:
-  tumor_sample_files:
+  tumor_input:
     type:
       type: array
       items: File
-      doc: "Cancer calling tumor input file(s) for processing"
+      doc: "Somatic variant calling tumor input file(s) for processing"
       inputBinding:
-        prefix: --tumor_sample_files
+        prefix: --tumor_input
 
-  normal_sample_files:
+  normal_germline_input:
     type:
       type: array
       items: File
-      doc: "Cancer calling normal input file(s) for processing"
+      doc: "Somatic calling normal input file(s) for processing"
       inputBinding:
-        prefix: --normal_sample_files
+        prefix: --normal_germline_input
 
   num_cores:
     type: int?
@@ -66,17 +66,32 @@ inputs:
       prefix: --GATK_file
 
   workflow:
-    type: string
-    doc: "Workflow to run; [cancer_variant_calling, structural_variant_calling]"
+    type: string?
+    doc: "Workflow to run; [somatic_variant_calling, germline_variant_calling]"
+    default: "somatic-variant-calling"
     inputBinding:
       prefix: --workflow
 
-  bed_file:
-    type: File
-    doc: "Input BED file"
+  WES_bed_file:
+    type: File?
+    doc: "Input BED file. Include if whole exome (WES) calling is desired."
     inputBinding:
-      prefix: --bed_file
+      prefix: --WES_bed_file
 
+  include_sv:
+    type: boolean?
+    default: false
+    doc: "Include structural variant calling"
+    inputBinding:
+      prefix: --include_sv
+
+   run_name:
+    type: string?
+    default: "Current_run"
+    doc: "Name to use for batching samples and intermediate file names."
+    inputBinding:
+      prefix: --run_name
+ 
   data_file:
     type: File?
     doc: "Input tar file of bcbio reference genomes directory"
