@@ -80,9 +80,8 @@ def parse_arguments():
     parser.add_argument('-c', '--num_cores',  type=int, default=16,  
                          help="number of cores to use for processing.") 
 
-    parser.add_argument('-g', '--GATK_file', type=str, help='Path to GATK file,',
-                        required=True,
-                        'e.g. /path/to/GenomeAnalysisTK.tar.bz2.')
+    parser.add_argument('-g', '--GATK_file', type=str, required=True, 
+                        help='Path to GATK file, e.g. /path/to/GenomeAnalysisTK.tar.bz2.')
  
 #    parser.add_argument('-W','--workflow', choices=['cancer-variant-calling',
 #                         'germline-variant-calling','structural-variant-calling'], 
@@ -403,6 +402,7 @@ def __main__(args):
         except subprocess.CalledProcessError as err:
             print(err.output, file=sys.stderr)
             print("ERROR: Did you mount a Docker volume to the tar file?")
+            sys.exit("Quitting program: Could not untar bcbio reference data tar file!")
         else:
             print("Bcbio data file ", options.data_file, " untarred in ", datadir)
     else:
@@ -504,6 +504,7 @@ def __main__(args):
                 subprocess.check_output(cmd, stderr=subprocess.STDOUT)
             except subprocess.CalledProcessError as err:
                 print(err.output, file=sys.stderr)
+                sys.exit("Quitting program: Could not register GATK file!")
             else:
                 print("GATK file ", options.GATK_file, " registered")
 
@@ -597,6 +598,7 @@ def __main__(args):
         print("ERROR: The provided data directory " + datadir + " cannot be reached," 
               "did you mount a volume to the data directory using '-v' on the 'docker run'"
               "command line?", file=sys.stderr)
+        sys.exit("Quitting program: Could not download or find reference data!")
  
     #write the project YAML to the current working directory so the user can
     #see exactly what bcbio is running and so bcbio can read it and run it
