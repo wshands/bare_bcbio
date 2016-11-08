@@ -32,7 +32,6 @@
         "path": "/mnt/cancer-dream-syn3/input/NGv3.bed"
     },
 
-    "include_sv": "true",
 
     "GATK_file": {
         "class": "File",
