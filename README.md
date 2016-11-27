@@ -1,5 +1,5 @@
 # bare_bcbio
-a container that runs some bcbio pipelines with no wrapper script and minimal input
+A container that runs some bcbio pipelines with no wrapper script and minimal input
 
 This container implements a somatic variant calling and germline variant calling pipeline run internally by bcbio. See the somatic variant calling pipeline described in the bcbio documentation at:
 http://bcbio-nextgen.readthedocs.io/en/latest/contents/testing.html#cancer-tumor-normal
@@ -30,9 +30,26 @@ Sample command line to run somatic variant calling using the docker run command:
     -d /reference/data/ 
     > out
 ```
-The work directory, where temp files will be created, specified by -w, must be "mirror mounted". This means that a -v switch must be used to provide the container access to the working directory and the directory must be the same on both sides of the colon in Docker's -v command.
+Sample command line to run a somatic variant calling workflow also including structural variant calling; host paths shortened by manipulating mount points:
+```
+    docker run -it 
+    -v /data/GATK/:/GATK/ 
+    -v /data/bcbioWGSconcatenated/input/:/input/ 
+    -v /data/bcbioWGStest/data:/ref/ 
+    -v $(pwd):$(pwd) -w $(pwd) quay.io/wshands/bare_bcbio:latest UCSCbcbioTool.py 
+    -n /input/SPCG-HB453_13G_normal_R1.fastq.gz 
+    -n /input/SPCG-HB453_13G_normal_R2.fastq.gz 
+    -t /input/SPCG-HB453_8R_tumor_R1.fastq.gz 
+    -t /input/SPCG-HB453_8R_tumor_R2.fastq.gz 
+    -g /GATK/GenomeAnalysisTK-3.6.tar.bz2  
+    -W somatic-variant-calling 
+    -W structural-variant-calling
+    -o $(pwd)/final 
+    -c 24 
+    -d /ref/ 
+    | tee  out
 
-Additionally, the path to all input files or data locations must be "mirror mounted" with a -v switch.
+```
 
 Use the Docker '-u' switch with your user id and group id to enable the container to run as the current user. One way to do this is to use the argument $(grep $USER /etc/passwd | cut -d: -f3,4) like this:
 ```
@@ -61,14 +78,13 @@ or
 ```
 Help output for python script inside container:
 ```
-docker run -it quay.io/wshands/bare_bcbio UCSCbcbioTool.py --help
 usage: UCSCbcbioTool.py [-h] [-t TUMOR_INPUT] [-n NORMAL_GERMLINE_INPUT]
                         [-c NUM_CORES] -g GATK_FILE
                         [-W {somatic-variant-calling,germline-variant-calling}]
                         [-b WES_BED_FILE] [-s] [-r RUN_NAME]
                         [-d DATA_DIR | -f DATA_FILE] [-o OUTPUT_DIR]
 
-Script to run the bcbio Docker container
+Script switches used to run the bcbio Docker container
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -108,4 +124,5 @@ optional arguments:
   -o OUTPUT_DIR, --output_dir OUTPUT_DIR
                         Directory where output files should be written.
                         Default is <cwd>/final
+
 ```

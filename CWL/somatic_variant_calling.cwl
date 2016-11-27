@@ -12,17 +12,16 @@ doc: |
     ```
     Usage:
     # fetch CWL
-    $> dockstore tool cwl --entry quay.io/wshands/bare_bcbio > cancer_variant_calling.cwl
+    $> dockstore tool cwl --entry quay.io/wshands/bare_bcbio > somatic_variant_calling.cwl
     # make a runtime JSON template and edit it
-    $> dockstore tool convert cwl2json --cwl cancer_variant_calling.cwl > cancer_variant_calling.json
+    $> dockstore tool convert cwl2json --cwl somatic_variant_calling.cwl > somatic_variant_calling.json
     # run it locally with the Dockstore CLI
-    $> dockstore tool launch --entry quay.io/wshands/bare_bcbio  --json cancer_variant_calling.json
+    $> dockstore tool launch --entry quay.io/wshands/bare_bcbio  --json somatic_variant_calling.json
     ```
 
-#dct:creator:
-#  "@id": "jshands@ucsc.edu"
-#  foaf:name: Walt Shands
-#  foaf:mbox: "jshands@ucsc.edu"
+dct:creator:
+  foaf:name: Walt Shands
+  foaf:mbox: "jshands@ucsc.edu"
 
 requirements:
   - class: DockerRequirement

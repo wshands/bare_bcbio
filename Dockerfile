@@ -18,6 +18,7 @@ RUN mkdir /home/ubuntu
 RUN chown ubuntu:ubuntu /home/ubuntu
 
 RUN chmod a+rw /mnt/biodata
+RUN chmod a+rw /usr/local/share/bcbio-nextgen/anaconda/opt
 
 USER ubuntu
 
