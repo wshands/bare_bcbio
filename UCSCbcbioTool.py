@@ -11,23 +11,25 @@ Structural variant calling can be included in the above pipelines.
 See this document for more information on bcbio: 
         http://bcbio-nextgen.readthedocs.io/en/latest/index.html
 
-It will download reference data if the data directory provided to it is empty. 
+It will download reference data if the data directory provided to it is empty, 
+or if a tar file of the reference data is provided it will untar the reference
+data in the current working directory and use it.
+ 
 It will installthe GATK tools if the GATK switch and arguent is specified on the
  command line.
 
 Inputs:
-    The sample fastq or BAM files: These should be separated by a space. 
-        Required for germline variant calling.
     The tumor fastq or BAM files: These should be separated by a space. 
         Required for somatic variant calling.
     The normal fastq or BAM files: These should be separated by a space.
-        Required for somatic variant calling.
+        Required for somatic and germline variant calling.
     Total available cores. This tells bcbio how many total cores to use. 
                http://bcbio-nextgen.readthedocs.io/en/latest/contents/parallel.html
     The path and file name of the GATK tools. If provided the GATK tools will be installed
-          in the container for use in the workflow. (required????) 
+          in the container for use in the workflow. Required for the currently
+          implemented pipelines 
     The name of the workflow to run. If not provided somatic variant calling only is run.
-    The path to and name of the BED file. Required.
+    The path to and name of the BED file. Required if WES is desired.
     The path to the tar file of the bcbio reference genome directory or a path
         to where the bcbio reference genome directory already exists or where the 
         reference genomes should be download. 
@@ -55,22 +57,11 @@ def parse_arguments():
     """
     parser = argparse.ArgumentParser(description='Script to run the bcbio Docker container')
 
-#    worflow_input_switches = parser.add_mutually_exclusive_group()
-
-#    germline_input_switches= parser.add_argument_group('germline input switch')
-#    germline_input_switches.add_argument('-s', '--sample_files', type=str, action='append',
-#                         help="Input file(s) for processing. Multiple path/file"  
-#                         "names can be provided separated by spaces. These could" 
-#                         "correspond fastq files for paired end reads." )
-
-#    cancer_input_switches = parser.add_argument_group('cancer input switches')
-#    cancer_input_switches.add_argument('-t', '--tumor_sample_files', type=str,
     parser.add_argument('-t', '--tumor_input', type=str,
                          action='append',
                          help="Input file(s) for processing. Multiple path/file"
                          " names can be provided separated by spaces. These could"
                          " correspond fastq files for tumor paired end reads." )
-#    cancer_input_switches.add_argument('-n', '--normal_sample_files', type=str,
     parser.add_argument('-n', '--normal_germline_input', type=str,
                          action='append', help="Input file(s) for processing."
                          " Multiple path/file names can be provided separated by"
@@ -83,19 +74,12 @@ def parse_arguments():
     parser.add_argument('-g', '--GATK_file', type=str, required=True, 
                         help='Path to GATK file, e.g. /path/to/GenomeAnalysisTK.tar.bz2.')
  
-#    parser.add_argument('-W','--workflow', choices=['cancer-variant-calling',
-#                         'germline-variant-calling','structural-variant-calling'], 
     parser.add_argument('-W','--workflow', choices=['somatic-variant-calling',
                          'germline-variant-calling'], 
                          default=['somatic-variant-calling'], 
-#                         action='append',
                          help="The name of the workflow to run. Default is somatic"
                          " variant calling.")
 
-#    parser.add_argument('-e','--calling_extent', choices=['WGS','WES'], 
-#                         default=['WGS'], 
-#                         help="The extent of variant calling, whole genome-'WGS' or"
-#                         " whole exome-'WES'. Default is WGS")
     parser.add_argument('-b', '--WES_bed_file', type=str, help='Input BED file'
                                  ' for WES variant calling.'
                                  ' Include if whole exome (WES) calling is desired.'
@@ -128,10 +112,6 @@ def parse_arguments():
 
 
     print("workflows:", options.workflow)
-#    if ('germline-variant-calling' not in options.workflow  and 
-#       'somatic-variant-calling' not in options.workflow and 
-#       'structural-variant-calling' in options.workflow):
-#        parser.error('Structural variant calling must be run with germline or cancer variant calling')
 
     if ('somatic-variant-calling' in  options.workflow  and 
                  ((options.normal_germline_input is None) or (options.tumor_input is None))):
@@ -180,7 +160,7 @@ resources:
   snpeff:
     jvm_opts:
     - -Xms750m
-    - -Xmx4g
+    - -Xmx10g
 galaxy_config: /mnt/biodata/galaxy/
 #  galaxy_config: $galaxy_config_path
     """)
@@ -191,10 +171,10 @@ galaxy_config: /mnt/biodata/galaxy/
 
 def get_germline_variant_template():
     """
-    This is the template that describes to bcbio the tools to used in the cancer
+    This is the template that describes to bcbio the tools to used in the germline
     variant calling workflow and if structural variant calling is also requested
     which tools to use. The input tumor and normal path and file names are 
-    inserted into the template as is the path and file name of the BED file,
+    inserted into the template as is the path and file name of the BED file, and
     the structural variant calling tools to use if structural variant calling is
     requested and the output directory.
     """
@@ -449,10 +429,6 @@ def __main__(args):
       os.makedirs(output_dir_str)    
     yaml_substitute_values['output_dir'] = output_dir_str
 
-#    if options.sample_files:
-#        sample_file_str = ",".join(options.sample_files)
-#        yaml_substitute_values['sample_files'] = sample_file_str
-
     if options.normal_germline_input:
         normal_file_str = ",".join(options.normal_germline_input)
         yaml_substitute_values['normal_germline_input'] = normal_file_str
@@ -460,9 +436,6 @@ def __main__(args):
     if options.tumor_input:
         tumor_file_str = ",".join(options.tumor_input)
         yaml_substitute_values['tumor_input'] = tumor_file_str
-
-#    for key, item in yaml_substitute_values.iteritems():
-#        print("yaml key and item:\n",key, item)
 
     print("workflow:", options.workflow)
 

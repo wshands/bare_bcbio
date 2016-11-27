@@ -19,10 +19,9 @@ doc: |
     $> dockstore tool launch --entry quay.io/wshands/bare_bcbio  --json germline_variant_calling.json
     ```
 
-#dct:creator:
-#  "@id": "jshands@ucsc.edu"
-#  foaf:name: Walt Shands
-#  foaf:mbox: "jshands@ucsc.edu"
+dct:creator:
+  foaf:name: Walt Shands
+  foaf:mbox: "jshands@ucsc.edu"
 
 requirements:
   - class: DockerRequirement
