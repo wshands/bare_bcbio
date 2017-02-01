@@ -42,7 +42,7 @@
 
     "data_file": {
         "class": "File",
-        "path": "/mnt/UCSCbcbioTooltestdir/bcbiotarreddata/bcbio_data.tar"
+        "path": "/mnt/bcbiotarreddata/bcbio_data.tar"
     }
 }
 
