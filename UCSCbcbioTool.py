@@ -59,14 +59,19 @@ def parse_arguments():
 
     parser.add_argument('-t', '--tumor_input', type=str,
                          action='append',
-                         help="Input file(s) for processing. Multiple path/file"
-                         " names can be provided separated by spaces. These could"
-                         " correspond fastq files for tumor paired end reads." )
+                         help="Input file(s) for processing. Up to two of these"
+                         " switches with path/file names can be provided. E.g"
+                         " fastq files for tumor paired end reads. The order of"
+                         " read pairs should correspond to the order of normal"
+                         " germline pairs" )
+
     parser.add_argument('-n', '--normal_germline_input', type=str,
-                         action='append', help="Input file(s) for processing."
-                         " Multiple path/file names can be provided separated by"
-                         " spaces. These could correspond fastq files for normal"
-                         " paired end reads." )
+                         action='append',
+                         help="Input file(s) for processing. Up to two of these"
+                         " switches with path/file names can be provided. E.g"
+                         " fastq files for normal paired end reads. The order of"
+                         " read pairs should correspond to the order of tumor"
+                         " pairs" )
 
     parser.add_argument('-c', '--num_cores',  type=int, default=16,  
                          help="number of cores to use for processing.") 
@@ -117,13 +122,20 @@ def parse_arguments():
                  ((options.normal_germline_input is None) or (options.tumor_input is None))):
         parser.error('Normal germline and tumor input file switches must be used for somatic-variant-calling')
 
+    if ('somatic-variant-calling' in  options.workflow  and 
+                 (len(options.tumor_input) > 2)):
+        parser.error('No more than two tumor input files (paired end reads) can be provided')
+
+    if ((('germline-variant-calling' in  options.workflow) or ('somatic-variant-calling' in  options.workflow))  and 
+                 (len(options.normal_germline_input) > 2)):
+        parser.error('No more than two normal input files (paired end reads) can be provided')
+
     if ('germline-variant-calling' in  options.workflow  and (options.tumor_input is not None)):
         parser.error('Tumor input file switch cannot be used for germline-variant-calling')
 
     if ('germline-variant-calling' in  options.workflow  and (options.normal_germline_input is None)):
         parser.error('Normal germline input file switch must be used for germline-variant-calling')
 
- 
     return (options)
 
 
