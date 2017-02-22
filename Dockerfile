@@ -1,4 +1,4 @@
-FROM bcbio/bcbio:1.0.1
+FROM bcbio/bcbio
 
 MAINTAINER Walt Shands jshands@ucsc.edu
 
