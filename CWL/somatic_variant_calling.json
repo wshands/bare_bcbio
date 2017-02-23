@@ -37,7 +37,7 @@
 
     "GATK_file": {
         "class": "File",
-        "path": "/mnt/GATK/GenomeAnalysisTK-3.6.tar.bz2"
+        "path": "/mnt/GATK/GenomeAnalysisTK-3.7.tar.bz2"
     },
 
     "data_file": {
