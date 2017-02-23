@@ -136,8 +136,77 @@ def parse_arguments():
     if ('germline-variant-calling' in  options.workflow  and (options.normal_germline_input is None)):
         parser.error('Normal germline input file switch must be used for germline-variant-calling')
 
+    if options.normal_germline_input:
+        for file in options.normal_germline_input:
+            if not os.path.isfile(file): 
+                parser.error("The input file {} is not a file".format(file))
+
+    if options.tumor_input:
+       for file in options.tumor_input:
+           if not os.path.isfile(file): 
+               parser.error("The input file {} is not a file".format(file))
+
+    if options.data_file:
+        if not os.path.isfile(options.data_file):
+            parser.error("The data file {} is not a file".format(options.data_file))
+
+
     return (options)
 
+
+
+def run_command(command_string, max_retries = 1, delay_in_seconds = 0, ignore_errors=False, cwd='.'):
+        print(command_string)
+        #command must be formatted as a list of strings; e.g.
+        #command = ["dockstore", "tool", "launch", "--debug", "--entry", self.docker_uri, "--json", "transformed_json_path"]
+        if type(command_string) is not list:
+            command = command_string.split()
+        else:
+            command = command_string
+            command_string = ' '.join(command_string)
+        print("command list object:")
+        print(command)
+
+        for retry_number in range(max_retries):
+            if retry_number > 0:
+                #we are about to retry the command, but sleep for a number of seconds before retrying
+                print("Waiting for "+str(delay_in_seconds)+" seconds before retrying")
+                time.sleep(delay_in_seconds)
+
+            print("\nbare bcbio executing command: " + command_string)
+            print("Attempt number "+str(retry_number+1)+" of "+str(max_retries))
+            try:
+                subprocess.check_call(command, cwd=cwd)
+            except subprocess.CalledProcessError as e:
+                #If we get here then the called command return code was non zero
+                print("\nERROR!!! bare bcbio CMD:" + command_string + " FAILED !!!", file=sys.stderr)
+                print("\nReturn code:" + str(e.returncode), file=sys.stderr)
+                return_code = e.returncode
+                if ignore_errors:
+                    break;
+            except Exception as e:
+                print("\nERROR!!! bare bcbio CMD:" + command_string + " THREW AN EXCEPTION !!!", file=sys.stderr)
+                print("\nException information:" + str(e), file=sys.stderr)
+                #if we get here the called command threw an exception other than just
+                #returning a non zero return code, so just set the return code to 1.
+                return_code = 1
+                if ignore_errors:
+                    break;
+            #in try constructs, the else block runs if no exception happened
+            #which in this case indicates the command succeeded
+            else:
+                print("CMD "+ command_string + " SUCCESSFUL IN bare bcbio!!")
+                return_code = 0
+                #break out of the retry loop since the command was successful
+                break;
+        #the else block is executed if the loop didn't exit abnormally (i.e. with break in
+        #the try: else: statement that indicates the command was successful
+        else:
+            if not ignore_errors:
+                print("Exiting bare bcbio due to call error in command "+command_string+" after "+str(max_retries)+" attempts", file=sys.stderr)
+                sys.exit(return_code)
+            else:
+                print ("There were errors in the call to command "+command_string+" after "+str(max_retries)+" attempts but ignore_errors=True so ignoring ", file=sys.stderr)
 
 def get_bcbio_system_template():
     """
@@ -367,13 +436,21 @@ def __main__(args):
     #if the user has provided a directory where the bcbio reference data has
     #been already downloaded or where it should be downloaded
     if options.data_dir:
-        datadir = options.data_dir    
+        datadir = options.data_dir
         if not os.path.exists(datadir):
             os.makedirs(datadir)
+        else:
+            if (not os.path.exists(os.path.join(datadir, "genomes")) or
+                not os.path.exists(os.path.join(datadir, "galaxy"))):
+                print("Data directory {} does not contain subdirectories"
+                      " 'genomes' and/or 'galaxy' and/or file 'bcbio_system.yaml'."
+                      " Exiting bare bcbio!".format(datadir))
+                sys.exit(1)
         #if the data dir does not end in a slash add one
         datadir = os.path.join(datadir, '')
     #if the user has  provided a tar file of the tarred up bcbio reference data 
     elif options.data_file:
+
         #create a subdirectory in which to extract bcbio reference data
         #This should be the current working directory as set by the user
         #or cwltool as we know it will be writable and we hope that the 
@@ -386,17 +463,14 @@ def __main__(args):
         #Dockstore (and cwltool?) seems to require this as the directory
         #where the input tar file is stored (and all other inputs) are
         #mounted as read only 
-        cmd = ['tar','-xzvf', options.data_file, '-C', datadir]
-        print("cmd is:", cmd) 
         print("Untarring bcbio data file ", options.data_file, " in ", datadir)
-        try:
-            subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError as err:
-            print(err.output, file=sys.stderr)
-            print("ERROR: Did you mount a Docker volume to the tar file?")
-            sys.exit("Quitting program: Could not untar bcbio reference data tar file!")
-        else:
+        cmd = ['tar','-xzvf', options.data_file, '-C', datadir]
+        return_code = run_command(cmd)
+        if return_code == 0:
             print("Bcbio data file ", options.data_file, " untarred in ", datadir)
+        else:
+            print("ERROR: Did you mount a Docker volume to the tar file?")
+
     else:
         #create a subdirectory in which to store bcbio reference data. The user 
         #(or cwltool) has not provided a directory for the reference data and no
@@ -406,7 +480,7 @@ def __main__(args):
         datadir = cwd + '/data/'
         if not os.path.exists(datadir):
             os.makedirs(datadir)
-      
+
     print("bcbio reference data dir:", datadir)
 
     #create a directory for the intermediate files created during the pipeline
@@ -415,7 +489,7 @@ def __main__(args):
     #intermediate files to this directory.
     working_dir = cwd + '/work/'
     if not os.path.exists(working_dir):
-        os.makedirs(working_dir)    
+        os.makedirs(working_dir)
 
     yaml_substitute_values = collections.defaultdict(str)
 
@@ -429,7 +503,6 @@ def __main__(args):
         variant_regions_line = 'variant_regions: ' + bed_file_str
         yaml_substitute_values['variant_regions'] = variant_regions_line
 
-    
     #create a directory for the result files created during the pipeline
     #run. The default is to put them under the current working directory. 
     #This path is substituted into the bcbio workflow YAML so bcbio will write
@@ -438,7 +511,7 @@ def __main__(args):
     if options.output_dir: 
         output_dir_str = "".join(options.output_dir)
     if not os.path.exists(output_dir_str):
-      os.makedirs(output_dir_str)    
+      os.makedirs(output_dir_str)
     yaml_substitute_values['output_dir'] = output_dir_str
 
     if options.normal_germline_input:
@@ -453,10 +526,10 @@ def __main__(args):
 
     if 'germline-variant-calling' in options.workflow:
         workflow_template = get_germline_variant_template()
-    
+
     if 'somatic-variant-calling' in options.workflow:
         workflow_template = get_somatic_variant_template()
-    
+
     # initialize structural variant substitution to nothing
     # in case structural variant calling is not requested
     yaml_substitute_values['svcaller_info'] = ""
@@ -465,7 +538,7 @@ def __main__(args):
 
     #place the input files and intermediate and results files locations, etc.
     #into the bcbio workflow YAML and save the YAML to pass to bcbio
-    workflow_to_run = ""   
+    workflow_to_run = ""
     try:
         workflow_to_run = workflow_template.substitute(yaml_substitute_values)
     except KeyError, err:
@@ -484,13 +557,8 @@ def __main__(args):
                 "skipping GATK install!", file=sys.stderr)
         else:
             cmd = ["gatk-register", options.GATK_file]
-            try:
-                #TODO try formatting the command as one string and removing shell=True
-                subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-            except subprocess.CalledProcessError as err:
-                print(err.output, file=sys.stderr)
-                sys.exit("Quitting program: Could not register GATK file!")
-            else:
+            return_code = run_command(cmd)
+            if return_code == 0:
                 print("GATK file ", options.GATK_file, " registered")
 
     #install the genome data if the provided data directory is empty
@@ -564,10 +632,7 @@ def __main__(args):
             #These directories should point to directories on the host that have lots
             #of space and this is accomplished via the symlinks created above
             cmd = ["bcbio_nextgen.py", 'upgrade', '--data', '--genomes', 'GRCh37', '--aligners', 'bwa']
-
-            print("command to run:\n",cmd)
-            output = subprocess.call(cmd)
-            print("data download output is:\n", output)
+            return_code = run_command(cmd)
 
         else:
             #TODO check that the genomes and galaxy folders exist; they should if 
@@ -593,10 +658,7 @@ def __main__(args):
 
     #run the workflow
     cmd = ["bcbio_nextgen.py", bcbio_project_file.name , "-n", str(options.num_cores)]
-     
-    print("command to run:\n",cmd)
-    output = subprocess.call(cmd)
-    print("workflow output is:\n", output)
+    return_code = run_command(cmd)
 
     print("----- %s seconds -----" % (time.time() - start_time), file=sys.stderr)
 
