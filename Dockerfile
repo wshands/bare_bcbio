@@ -1,4 +1,4 @@
-FROM bcbio/bcbio
+FROM quay.io/wshands/bcbio:v1.0.1
 
 MAINTAINER Walt Shands jshands@ucsc.edu
 
