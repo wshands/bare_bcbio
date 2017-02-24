@@ -16,7 +16,7 @@ doc: |
     # make a runtime JSON template and edit it
     $> dockstore tool convert cwl2json --cwl germline_variant_calling.cwl > germline_variant_calling.json
     # run it locally with the Dockstore CLI
-    $> dockstore tool launch --entry quay.io/wshands/bare_bcbio  --json germline_variant_calling.json
+    $> dockstore tool launch --entry quay.io/wshands/bare_bcbio:1.0.2  --json germline_variant_calling.json
     ```
 
 dct:creator:
@@ -25,7 +25,7 @@ dct:creator:
 
 requirements:
   - class: DockerRequirement
-    dockerPull: "quay.io/wshands/bare_bcbio"
+    dockerPull: "quay.io/wshands/bare_bcbio:1.0.2"
 
 hints:
   - class: ResourceRequirement
