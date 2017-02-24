@@ -18,7 +18,7 @@ RUN mkdir /home/ubuntu
 RUN chown ubuntu:ubuntu /home/ubuntu
 
 RUN chmod a+rw /mnt/biodata
-RUN chmod a+rw /usr/local/share/bcbio-nextgen/anaconda/opt
+RUN chmod a+rw /usr/local/share/bcbio-nextgen
 
 USER ubuntu
 
@@ -50,10 +50,12 @@ USER ubuntu
 #SPACE TO ACCOMODATE VERY LARGE FILES; E.G. THE REFERENCE DATA DOWLOADED BY 
 #BCBIO CAN CONSUME > 15G
  
-VOLUME /mnt/biodata/
+VOLUME /mnt/biodata
 
-#Use VOLUME to expose the /mnt/biodata/ directory on the host. This is done to make
-#the directory where the GATK jar file will be stored writable, in the case 
-#that the container is being run by cwltool. The GATK cannot be preinstalled
-#in the container bacause a license is required to use it.
-VOLUME /usr/local/share/bcbio-nextgen/anaconda/opt
+#Use VOLUME to expose the /usr/local/share/bcbio-nextgen directory on the host. 
+#This is done to make the directory where the GATK jar file will be stored writable, 
+#in case the container is being run by cwltool. The GATK cannot be preinstalled
+#in the container bacause a license is required to use it. It will also allow
+#bcbio-nextgen inside the container to use its upgrade command to install newer
+#versions on needed software and install extra tools for the containers use.
+VOLUME /usr/local/share/bcbio-nextgen

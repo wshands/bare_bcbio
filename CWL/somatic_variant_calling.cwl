@@ -12,11 +12,11 @@ doc: |
     ```
     Usage:
     # fetch CWL
-    $> dockstore tool cwl --entry quay.io/wshands/bare_bcbio > somatic_variant_calling.cwl
+    $> dockstore tool cwl --entry quay.io/wshands/bare_bcbio/bare_bcbio_somatic_variant_calling:1.0.3 > somatic_variant_calling.cwl
     # make a runtime JSON template and edit it
     $> dockstore tool convert cwl2json --cwl somatic_variant_calling.cwl > somatic_variant_calling.json
     # run it locally with the Dockstore CLI
-    $> dockstore tool launch --entry quay.io/wshands/bare_bcbio:1.0.2  --json somatic_variant_calling.json
+    $> dockstore tool launch --debug  --entry quay.io/wshands/bare_bcbio/bare_bcbio_somatic_variant_calling:1.0.3  --json somatic_variant_calling.json
     ```
 
 dct:creator:
@@ -25,7 +25,7 @@ dct:creator:
 
 requirements:
   - class: DockerRequirement
-    dockerPull: "quay.io/wshands/bare_bcbio:1.0.2"
+    dockerPull: "quay.io/wshands/bare_bcbio:1.0.3"
 
 hints:
   - class: ResourceRequirement
