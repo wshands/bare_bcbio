@@ -43,7 +43,7 @@ Sample command line to run a somatic variant calling workflow also including str
     -t /input/SPCG-HB453_8R_tumor_R2.fastq.gz 
     -g /GATK/GenomeAnalysisTK-3.6.tar.bz2  
     -W somatic-variant-calling 
-    -W structural-variant-calling
+    -s
     -o $(pwd)/final 
     -c 24 
     -d /ref/ 
@@ -57,11 +57,11 @@ Use the Docker '-u' switch with your user id and group id to enable the containe
 ```
 If the current user also is the owner of the current working directory this will allow the container to write to the working directory (which is set using the '-w' switch).
 
-You may do structural variant calling at the same time as either somatic or germ-line small variant calling by specifying both on the command line with the -W switch, e.g.:
+You may do structural variant calling at the same time as either somatic or germ-line small variant calling with the -s (or --include_sv) switch, e.g.:
 ```
     ...
     -W somatic-variant-calling 
-    -W structural-variant-calling 
+    -s 
     ...
 ```
 You may point to a directory where bcbio reference data is located, or an empty directory where it will be downloaded, with the -d switch, or you may point to a tar ball of the bcbio reference data which will be un-tarred in the current working directory with the -t switch, e.g.
