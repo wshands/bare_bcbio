@@ -1,0 +1,12 @@
+version: 1.2
+tools:
+   - subclass: CWL
+     primaryDescriptorPath: /CWL/germline_variant_calling_bcbio.cwl
+     testParameterFiles:
+         - /CWL/germline_variant_calling_bcbio.json
+     name: bare_bcbio_germline_variant_calling
+   - subclass: CWL
+     primaryDescriptorPath: /CWL/somatic_variant_calling.cwl
+     testParameterFiles:
+         - /CWL/somatic_variant_calling.json
+     name: bare_bcbio_somatic_variant_calling
